@@ -4,6 +4,8 @@ import os
 import boto3
 import re  # 正規表現モジュールをインポート
 from botocore.exceptions import ClientError
+import requests
+
 
 
 # Lambda コンテキストからリージョンを抽出する関数
@@ -83,11 +85,24 @@ def lambda_handler(event, context):
         print("Calling Bedrock invoke_model API with payload:", json.dumps(request_payload))
         
         # invoke_model APIを呼び出し
-        response = bedrock_client.invoke_model(
-            modelId=MODEL_ID,
-            body=json.dumps(request_payload),
-            contentType="application/json"
-        )
+        # response = bedrock_client.invoke_model(
+        #     modelId=MODEL_ID,
+        #     body=json.dumps(request_payload),
+        #     contentType="application/json"
+        # )
+        # ngrokの公開URL
+        fastapi_url = "https://e993-35-204-126-239.ngrok-free.app/generate"
+
+        # FastAPIの形式に合わせたペイロード（prompt形式）
+        fastapi_payload = {
+            "prompt": build_prompt_from_messages(messages)  # 後述の関数で整形
+        }
+
+        # FastAPIへPOSTリクエスト
+        response = requests.post(fastapi_url, json=fastapi_payload)
+        response.raise_for_status()
+        response_body = response.json()
+
         
         # レスポンスを解析
         response_body = json.loads(response['body'].read())
@@ -98,8 +113,10 @@ def lambda_handler(event, context):
             raise Exception("No response content from the model")
         
         # アシスタントの応答を取得
-        assistant_response = response_body['output']['message']['content'][0]['text']
+        # assistant_response = response_body['output']['message']['content'][0]['text']
         
+        # アシスタントの応答を取得
+        assistant_response = response_body["generated_text"]
         # アシスタントの応答を会話履歴に追加
         messages.append({
             "role": "assistant",
